@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# Задание:
+# Написать скрипт, который в заданной директории ротирует (переносит в архив) лог-файлы, если они превышают заданный размер.
+# Входные параметры:
+# -- dir PATH — обязательный, директория с логами.
+# -- max-mb N — обязательный, порог в мегабайтах (целое число).
+# -- pattern PATTERN — опционально, маска файлов (по умолчанию "*.log")
+
+# Поведение:
+
+# - Проверять только указанную директорию, без рекурсии.
+# - Искать обычные файлы, соответствующие маске (симлинки специально не обрабатывать / пропускать).
+# - Если размер файла >= N мегабайт:
+# 1. Переименовать "file.log" в "file-YYYYmmdd_HHMMSS.log".
+# 2. Сжать ротированный файл в GZIP (file-YYYYmmdd_HHMMSS.log.gz) и удалить несжатую копию.
+# 3. Создать новый пустой файл по исходному пути (file.log).
+
+# - Выводить краткие сообщения о действиях (какие файлы ротированы).
+# - Код возврата 0 при успехе, 1 - при фатальной ошибке (например, несуществующая директория).
+# ----------------------------------------------------------------------------------------------------
+# Инициализация переменных.
+DIR=""
+MAX_MB=""
+PATTERN="*.log"
+
+#  $# - количество аргументов. При вызове аргументы считаются с 1, так как само имя скрипта - тоже аргумент. Но $# считает только аргументы.
+#  Например "./script a b c" имеет 3 аргумента.
+while [[ $# -gt 0  ]]; do
+  case $1 in
+    --dir)
+      DIR="$2"
+      shift 2
+      ;;
+    --max-mb)
+      MAX_MB="$2"
+      shift 2
+      ;;
+    --pattern)
+      PATTERN="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Проверка заполнения обязательных параметров
+if [[ -z "$DIR" ]] || [[ -z "$MAX_MB" ]]; then
+  echo "Error: -dir and -max-mb are required" >&2
+  exit 1
+fi
+
+if ! [[ -d "$DIR" ]]; then
+  echo "Error: Directory '$DIR' does not exist" >&2
+  exit 1
+fi
+
+# "=~" - оператор RegExp в Bash
+if ! [[ "$MAX_MB" =~ ^[0-9]+$ ]]; then
+  echo "Error: -max-mb must be a positive integer" >&2
+  exit 1
+fi
+
+# Обход файлов по маске
+for file in "$DIR"/$PATTERN; do
+  if [[ -f "$file" ]]; then
+    # "du -m" - размер файла в Mb
+    size_mb=$(du -m "$file") | awk '{print $1}'
+
+    if [[ $size_mb -ge $MAX_MB ]]; then
+      found=1
+      echo "Rotating $file (size: ${size_mb}MB)"
+
+      date_str=$(date '+%Y%m%d %H%M%S')
+      # "file%.log" удаляет ".log" с конца имени файла.
+      # Пример:
+      # file="app.log"
+      # echo "${file%.log}"
+      # Вывод: app
+      new_name="${file%.log}-${date_str}.log"
+
+      mv "$file" "$new_name"
+      gzip "$new_name"
+      touch "$file"
+
+      echo "Rotated and compressed: $new_name.gz"
+    fi
+  fi
+done
+
+if [[ "$found" -eq 0 ]]; then
+  echo "No files to rotate"
+fi
+
+exit 0
