@@ -25,7 +25,7 @@ MAX_MB=""
 PATTERN="*.log"
 
 #  $# - количество аргументов. При вызове аргументы считаются с 1, так как само имя скрипта - тоже аргумент. Но $# считает только аргументы.
-#  Например "./script a b c" имеет 3 аргумента.
+#  Например, "./script a b c" имеет 3 аргумента.
 while [[ $# -gt 0  ]]; do
   case $1 in
     --dir)
@@ -49,18 +49,18 @@ done
 
 # Проверка заполнения обязательных параметров
 if [[ -z "$DIR" ]] || [[ -z "$MAX_MB" ]]; then
-  echo "Error: -dir and -max-mb are required" >&2
+  echo "Error: --dir and --max-mb are required" >&2 # Ошибка: требуются значения --dir и --max-mb
   exit 1
 fi
 
 if ! [[ -d "$DIR" ]]; then
-  echo "Error: Directory '$DIR' does not exist" >&2
+  echo "Error: Directory '$DIR' does not exist" >&2 # Ошибка: Директория не существует
   exit 1
 fi
 
 # "=~" - оператор RegExp в Bash
 if ! [[ "$MAX_MB" =~ ^[0-9]+$ ]]; then
-  echo "Error: -max-mb must be a positive integer" >&2
+  echo "Error: --max-mb must be a positive integer" >&2 # Ошибка: --max-mb должно быть "+" целым числом
   exit 1
 fi
 
@@ -68,9 +68,10 @@ fi
 for file in "$DIR"/$PATTERN; do
   if [[ -f "$file" ]]; then
     # "du -m" - размер файла в Mb
+    # Результат выводится как "Размер ИмяФайла", поэтому через awk выбираем первый показатель
     size_mb=$(du -m "$file") | awk '{print $1}'
 
-    if [[ $size_mb -ge $MAX_MB ]]; then
+    if [[ $size_mb -gt $MAX_MB ]]; then # size_mb > MAX_MB
       found=1
       echo "Rotating $file (size: ${size_mb}MB)"
 
@@ -83,6 +84,7 @@ for file in "$DIR"/$PATTERN; do
       new_name="${file%.log}-${date_str}.log"
 
       mv "$file" "$new_name"
+      # gzip по умолчанию удаляет исходный файл
       gzip "$new_name"
       touch "$file"
 
